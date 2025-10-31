@@ -1,5 +1,5 @@
 use nom::{
-    Err, IResult, Parser,
+    IResult, Parser,
     branch::alt,
     bytes::complete::{tag, take_until, take_while1},
     character::complete::{not_line_ending, space0},
@@ -9,12 +9,14 @@ use nom::{
 use std::str::FromStr;
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct Node {
     id: String,
     desc: String,
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct Edge {
     src: String,
     dest: String,
@@ -23,11 +25,13 @@ pub struct Edge {
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub struct Graph {
     nodes: Vec<Node>,
     edges: Vec<Edge>,
 }
 
+#[allow(dead_code)]
 pub enum ParsedLine {
     Node(Node),
     Edge(Edge),
