@@ -4,4 +4,6 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-yew = { version = "0.20.0", features = ["csr"] }
+yew = { version = "0.20", features = ["csr"] }
+nom = "8.0"
+web-sys = "0.3"
