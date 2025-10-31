@@ -53,6 +53,7 @@ fn app() -> Html {
             <button {onclick}>{"Generate Graph"}</button>
             <h3>{"Output / Debug"}</h3>
             <textarea
+                style="font-family: monospace;"
                 aria-invalid={aria}
                 rows={10}
                 cols={50}
