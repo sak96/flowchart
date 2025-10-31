@@ -7,6 +7,7 @@ mod parse;
 fn app() -> Html {
     let input_text = use_state(|| "".to_string());
     let output_text = use_state(|| "".to_string());
+    let invalid = use_state(|| false);
 
     // Clone for closures
     let input_text_clone = input_text.clone();
@@ -17,21 +18,29 @@ fn app() -> Html {
         input_text_clone.set(input.value());
     });
 
+    let invalid_clone = invalid.clone();
     let onclick = {
         let input_text = input_text.clone();
         let output_text = output_text.clone();
         Callback::from(move |_| {
             let graph_result = Graph::from_str(&input_text);
+
             let debug_info = match graph_result {
-                Ok(graph) => format!("Parsed graph:\n{:#?}", graph),
-                Err(err) => format!("Error parsing graph:\n{}", err),
+                Ok(graph) => {
+                    invalid_clone.set(false);
+                    format!("{:#?}", graph)
+                }
+                Err(err) => {
+                    invalid_clone.set(true);
+                    format!("Error parsing graph:\n{}", err)
+                }
             };
             output_text.set(debug_info);
         })
     };
-
+    let aria = format!("{}", *invalid.clone());
     html! {
-        <div>
+        <div class="container-fluid">
             <h3>{"Input Graph Text"}</h3>
             <textarea
                 rows={10}
@@ -44,6 +53,7 @@ fn app() -> Html {
             <button {onclick}>{"Generate Graph"}</button>
             <h3>{"Output / Debug"}</h3>
             <textarea
+                aria-invalid={aria}
                 rows={10}
                 cols={50}
                 value={(*output_text).clone()}

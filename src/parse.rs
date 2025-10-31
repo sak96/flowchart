@@ -1,5 +1,5 @@
 use nom::{
-    IResult, Parser,
+    Err, IResult, Parser,
     branch::alt,
     bytes::complete::{tag, take_until, take_while1},
     character::complete::{not_line_ending, space0},
@@ -10,22 +10,30 @@ use std::str::FromStr;
 
 #[derive(Debug)]
 pub struct Node {
-    pub id: String,
-    pub desc: String,
+    id: String,
+    desc: String,
 }
 
 #[derive(Debug)]
 pub struct Edge {
-    pub src: String,
-    pub dest: String,
-    pub directed: bool,
-    pub desc: String,
+    src: String,
+    dest: String,
+    directed: bool,
+    desc: String,
 }
 
 #[derive(Debug)]
 pub struct Graph {
-    pub nodes: Vec<Node>,
-    pub edges: Vec<Edge>,
+    nodes: Vec<Node>,
+    edges: Vec<Edge>,
+}
+
+pub enum ParsedLine {
+    Node(Node),
+    Edge(Edge),
+    Blank,
+    Comment(String),
+    Error,
 }
 
 // Parse identifier: alphanumeric and underscore allowed
@@ -74,29 +82,34 @@ fn parse_edge(input: &str) -> IResult<&str, Edge> {
 }
 
 // Parse comment lines starting with '%%', ignores content
-fn parse_comment(input: &str) -> IResult<&str, ()> {
+fn parse_comment(input: &str) -> IResult<&str, String> {
     let (input, _) = tag("%%")(input)?;
     let (input, _) = not_line_ending(input)?;
-    Ok((input, ()))
+    Ok((input, input.to_string()))
 }
 
 // Parse a single line as either node, edge, comment, or empty line
-fn parse_line(input: &str) -> IResult<&str, Option<Result<Node, Edge>>> {
+fn parse_line(input: &str) -> IResult<&str, ParsedLine> {
     let (input, _) = space0(input)?;
+
+    // Try parse empty
+    if input.is_empty() {
+        return Ok((input, ParsedLine::Blank));
+    }
     // Try parse comment
-    if let Ok((input, _)) = parse_comment(input) {
-        return Ok((input, None));
+    if let Ok((input, comment)) = parse_comment(input) {
+        return Ok((input, ParsedLine::Comment(comment)));
     }
     // Try parse node
     if let Ok((input, node)) = parse_node(input) {
-        return Ok((input, Some(Ok(node))));
+        return Ok((input, ParsedLine::Node(node)));
     }
     // Try parse edge
     if let Ok((input, edge)) = parse_edge(input) {
-        return Ok((input, Some(Err(edge))));
+        return Ok((input, ParsedLine::Edge(edge)));
     }
     // If line is blank or cannot parse, skip
-    Ok((input, None))
+    Ok((input, ParsedLine::Error))
 }
 
 // Parse the entire input text into graph with nodes and edges
@@ -105,11 +118,15 @@ fn parse_graph(input: &str) -> Result<Graph, String> {
     let mut edges = Vec::new();
     for line in input.lines() {
         match parse_line(line) {
-            Ok((_, Some(result))) => match result {
-                Ok(node) => nodes.push(node),
-                Err(edge) => edges.push(edge),
+            Ok((input, result)) => match result {
+                ParsedLine::Node(node) => nodes.push(node),
+                ParsedLine::Edge(edge) => edges.push(edge),
+                ParsedLine::Blank => (),
+                ParsedLine::Comment(_) => (),
+                ParsedLine::Error => {
+                    return Err(format!("Failed to parse line '{}'", input));
+                }
             },
-            Ok((_, None)) => { /* ignore empty/comment */ }
             Err(e) => return Err(format!("Failed to parse line '{}': {:?}", line, e)),
         }
     }
