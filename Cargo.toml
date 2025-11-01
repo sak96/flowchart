@@ -6,4 +6,5 @@ edition = "2024"
 [dependencies]
 yew = { version = "0.20", features = ["csr"] }
 nom = "8.0"
+rustc-hash = "2.1"
 web-sys = "0.3"

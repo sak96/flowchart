@@ -1,23 +1,24 @@
 use nom::{
     IResult, Parser,
     branch::alt,
-    bytes::complete::{tag, take_until, take_while1},
-    character::complete::{not_line_ending, space0},
+    bytes::complete::{tag, take_until},
+    character::complete::{alphanumeric1, not_line_ending, space0},
     combinator::opt,
     sequence::delimited,
 };
+use rustc_hash::FxHashMap;
 use std::str::FromStr;
 
 #[derive(Debug)]
 #[allow(dead_code)]
-pub struct Node {
+pub struct ParsedNode {
     id: String,
     desc: String,
 }
 
 #[derive(Debug)]
 #[allow(dead_code)]
-pub struct Edge {
+pub struct ParsedEdge {
     src: String,
     dest: String,
     directed: bool,
@@ -27,14 +28,14 @@ pub struct Edge {
 #[derive(Debug)]
 #[allow(dead_code)]
 pub struct Graph {
-    nodes: Vec<Node>,
-    edges: Vec<Edge>,
+    nodes: Vec<String>,
+    edges: Vec<ParsedEdge>,
 }
 
 #[allow(dead_code)]
 pub enum ParsedLine {
-    Node(Node),
-    Edge(Edge),
+    Node(ParsedNode),
+    Edge(ParsedEdge),
     Blank,
     Comment(String),
     Error,
@@ -42,16 +43,16 @@ pub enum ParsedLine {
 
 // Parse identifier: alphanumeric and underscore allowed
 fn parse_id(input: &str) -> IResult<&str, &str> {
-    take_while1(|c: char| c.is_alphanumeric() || c == '_')(input)
+    alphanumeric1(input)
 }
 
 // Parse node line: (id[node text])
-fn parse_node(input: &str) -> IResult<&str, Node> {
+fn parse_node(input: &str) -> IResult<&str, ParsedNode> {
     let (input, id) = parse_id(input)?;
     let (input, desc) = delimited(tag("["), take_until("]"), tag("]")).parse(input)?;
     Ok((
         input,
-        Node {
+        ParsedNode {
             id: id.to_string(),
             desc: desc.to_string(),
         },
@@ -65,7 +66,7 @@ fn parse_edge_desc(input: &str) -> IResult<&str, &str> {
 
 // Parse edge line: (id1 --> |desc| id2) or (id1 <--> |desc| id2)
 // Edge description is optional
-fn parse_edge(input: &str) -> IResult<&str, Edge> {
+fn parse_edge(input: &str) -> IResult<&str, ParsedEdge> {
     let (input, src) = parse_id(input)?;
     let (input, _) = space0(input)?;
     let (input, dir) = alt((tag("-->"), tag("<-->"))).parse(input)?;
@@ -76,7 +77,7 @@ fn parse_edge(input: &str) -> IResult<&str, Edge> {
     let (input, dest) = parse_id(input)?;
     Ok((
         input,
-        Edge {
+        ParsedEdge {
             src: src.to_string(),
             dest: dest.to_string(),
             directed,
@@ -120,13 +121,29 @@ fn parse_line(input: &str) -> IResult<&str, ParsedLine> {
 fn parse_graph(input: &str) -> Result<Graph, String> {
     let mut nodes = Vec::new();
     let mut edges = Vec::new();
+    let mut node_map = FxHashMap::default();
     for line in input.lines() {
         match parse_line(line) {
             Ok((input, result)) => match result {
-                ParsedLine::Node(node) => nodes.push(node),
-                ParsedLine::Edge(edge) => edges.push(edge),
-                ParsedLine::Blank => (),
-                ParsedLine::Comment(_) => (),
+                ParsedLine::Node(node) => {
+                    if let Some(id) = node_map.get(&node.id) {
+                        let id = *id;
+                        nodes[id] = node.id.clone();
+                    } else {
+                        node_map.insert(node.id.clone(), nodes.len());
+                    }
+                    nodes.push(node.desc);
+                }
+                ParsedLine::Edge(edge) => {
+                    if !node_map.contains_key(&edge.src) {
+                        node_map.insert(edge.src.clone(), nodes.len());
+                    }
+                    if !node_map.contains_key(&edge.dest) {
+                        node_map.insert(edge.dest.clone(), nodes.len());
+                    }
+                    edges.push(edge)
+                }
+                ParsedLine::Blank | ParsedLine::Comment(_) => (),
                 ParsedLine::Error => {
                     return Err(format!("Failed to parse line '{}'", input));
                 }
